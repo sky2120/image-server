@@ -21,9 +21,9 @@ const storage = multer.diskStorage({
     cb(null, uploadsDir);
   },
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const ext = path.extname(file.originalname);
-    cb(null, file.fieldname + '-' + uniqueSuffix + ext);
+    cb(null, timestamp + ext);
   }
 });
 
@@ -40,7 +40,7 @@ const upload = multer({
 });
 
 app.get('/', (req, res) => {
-  res.send(`
+  const html = `
     <!DOCTYPE html>
     <html lang="zh-CN">
     <head>
@@ -122,10 +122,23 @@ app.get('/', (req, res) => {
             .download-link:hover {
                 background: #0056b3;
             }
+            .api-link {
+                display: inline-block;
+                margin-bottom: 20px;
+                padding: 8px 16px;
+                background: #6c757d;
+                color: white;
+                text-decoration: none;
+                border-radius: 4px;
+            }
+            .api-link:hover {
+                background: #5a6268;
+            }
         </style>
     </head>
     <body>
         <h1>图片服务器</h1>
+        <a href="/api-docs" class="api-link">查看API文档</a>
         
         <div class="upload-section">
             <h2>上传图片</h2>
@@ -155,16 +168,16 @@ app.get('/', (req, res) => {
                         return;
                     }
                     
-                    grid.innerHTML = images.map(image => `
-                        <div class="image-card">
-                            <img src="/uploads/${image.filename}" alt="${image.originalname}">
-                            <div class="image-info">
-                                <p>${image.originalname}</p>
-                                <p>${(image.size / 1024).toFixed(2)} KB</p>
-                                <a href="/uploads/${image.filename}" download="${image.originalname}" class="download-link">下载</a>
-                            </div>
-                        </div>
-                    `).join('');
+                    grid.innerHTML = images.map(image => {
+                        return '<div class="image-card">' +
+                            '<img src="/uploads/' + image.filename + '" alt="' + image.originalname + '">' +
+                            '<div class="image-info">' +
+                                '<p>' + image.originalname + '</p>' +
+                                '<p>' + (image.size / 1024).toFixed(2) + ' KB</p>' +
+                                '<a href="/uploads/' + image.filename + '" download="' + image.originalname + '" class="download-link">下载</a>' +
+                            '</div>' +
+                        '</div>';
+                    }).join('');
                 } catch (error) {
                     console.error('Error loading images:', error);
                 }
@@ -174,23 +187,352 @@ app.get('/', (req, res) => {
         </script>
     </body>
     </html>
-  `);
+  `;
+  res.send(html);
+});
+
+app.get('/api-docs', (req, res) => {
+  const apiDocs = `
+    <!DOCTYPE html>
+    <html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>API文档 - 图片服务器</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 20px;
+            }
+            h1 {
+                text-align: center;
+                color: #333;
+            }
+            h2 {
+                color: #495057;
+                border-bottom: 2px solid #dee2e6;
+                padding-bottom: 10px;
+                margin-top: 40px;
+            }
+            h3 {
+                color: #212529;
+                margin-top: 30px;
+            }
+            .api-endpoint {
+                background: #f8f9fa;
+                padding: 20px;
+                border-radius: 8px;
+                margin-bottom: 20px;
+                border-left: 4px solid #007bff;
+            }
+            .method {
+                display: inline-block;
+                padding: 4px 8px;
+                border-radius: 4px;
+                font-weight: bold;
+                font-size: 14px;
+                margin-right: 10px;
+            }
+            .method-get {
+                background: #28a745;
+                color: white;
+            }
+            .method-post {
+                background: #007bff;
+                color: white;
+            }
+            .url {
+                font-family: monospace;
+                font-size: 16px;
+                color: #495057;
+            }
+            .description {
+                margin: 10px 0;
+                color: #6c757d;
+            }
+            .parameters {
+                margin: 15px 0;
+            }
+            .parameter {
+                margin: 5px 0;
+                padding-left: 20px;
+            }
+            .code-block {
+                background: #f8f9fa;
+                padding: 15px;
+                border-radius: 4px;
+                font-family: monospace;
+                overflow-x: auto;
+                margin: 15px 0;
+                border: 1px solid #dee2e6;
+            }
+            .back-link {
+                display: inline-block;
+                margin-bottom: 20px;
+                padding: 8px 16px;
+                background: #6c757d;
+                color: white;
+                text-decoration: none;
+                border-radius: 4px;
+            }
+            .back-link:hover {
+                background: #5a6268;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>API文档</h1>
+        <a href="/" class="back-link">返回首页</a>
+        
+        <h2>图片服务器API</h2>
+        <p>本API提供图片上传、下载和浏览功能</p>
+        
+        <h3>端点列表</h3>
+        
+        <div class="api-endpoint">
+            <span class="method method-get">GET</span>
+            <span class="url">/</span>
+            <div class="description">主页面，提供图片上传和浏览界面</div>
+        </div>
+        
+        <div class="api-endpoint">
+            <span class="method method-post">POST</span>
+            <span class="url">/upload</span>
+            <div class="description">上传图片文件</div>
+            <div class="parameters">
+                <strong>参数：</strong>
+                <div class="parameter">image (文件): 图片文件（支持JPG、PNG、GIF、WebP格式）</div>
+            </div>
+            <h4>示例请求（表单提交）</h4>
+            <div class="code-block">
+&lt;form action="/upload" method="post" enctype="multipart/form-data"&gt;
+  &lt;input type="file" name="image" accept="image/*"&gt;
+  &lt;button type="submit"&gt;上传&lt;/button&gt;
+&lt;/form&gt;
+            </div>
+            <h4>示例请求（Python）</h4>
+            <div class="code-block">
+import requests
+
+server_url = 'http://your-server-domain.com'
+url = f'{server_url}/upload'
+files = {'image': open('example.jpg', 'rb')}
+
+response = requests.post(url, files=files)
+print(response.status_code)
+print(response.text)
+            </div>
+            <h4>示例响应（成功）</h4>
+            <div class="code-block">
+// 状态码: 200
+上传成功页面，包含文件详细信息
+</div>
+            <h4>示例响应（失败）</h4>
+            <div class="code-block">
+// 状态码: 400
+上传失败页面，提示"请选择图片文件"
+</div>
+        </div>
+        
+        <div class="api-endpoint">
+            <span class="method method-get">GET</span>
+            <span class="url">/images</span>
+            <div class="description">获取所有图片列表（JSON格式）</div>
+            <h4>示例请求（Python）</h4>
+            <div class="code-block">
+import requests
+
+server_url = 'http://your-server-domain.com'
+url = f'{server_url}/images'
+response = requests.get(url)
+
+if response.status_code == 200:
+    images = response.json()
+    print(images)
+else:
+    print(f'Error: {response.status_code}')
+            </div>
+            <h4>示例响应（成功）</h4>
+            <div class="code-block">
+// 状态码: 200
+[
+  {
+    "filename": "2026-03-30T14-35-22-456Z.jpg",
+    "originalname": "example.jpg",
+    "size": 10240,
+    "createdAt": "2026-03-30T14:35:22.456Z"
+  }
+]
+</div>
+            <h4>示例响应（失败）</h4>
+            <div class="code-block">
+// 状态码: 500
+{"error": "Failed to read directory"}
+</div>
+        </div>
+        
+        <div class="api-endpoint">
+            <span class="method method-get">GET</span>
+            <span class="url">/uploads/:filename</span>
+            <div class="description">下载指定图片文件</div>
+            <div class="parameters">
+                <strong>路径参数：</strong>
+                <div class="parameter">filename: 图片文件名</div>
+            </div>
+            <h4>示例请求（Python）</h4>
+            <div class="code-block">
+import requests
+
+server_url = 'http://your-server-domain.com'
+filename = '2026-03-30T14-35-22-456Z.jpg'
+url = f'{server_url}/uploads/{filename}'
+
+response = requests.get(url)
+
+if response.status_code == 200:
+    with open('downloaded.jpg', 'wb') as f:
+        f.write(response.content)
+    print('Image downloaded successfully')
+else:
+    print(f'Error: {response.status_code}')
+            </div>
+            <h4>示例响应（成功）</h4>
+            <div class="code-block">
+// 状态码: 200
+图片文件（二进制数据）
+</div>
+            <h4>示例响应（失败）</h4>
+            <div class="code-block">
+// 状态码: 404
+Cannot GET /uploads/nonexistent.jpg
+</div>
+        </div>
+        
+        <div class="api-endpoint">
+            <span class="method method-get">GET</span>
+            <span class="url">/api-docs</span>
+            <div class="description">查看API文档</div>
+        </div>
+        
+        <h2>支持的图片格式</h2>
+        <ul>
+            <li>JPEG/JPG (.jpg, .jpeg)</li>
+            <li>PNG (.png)</li>
+            <li>GIF (.gif)</li>
+            <li>WebP (.webp)</li>
+        </ul>
+        
+        <h2>文件命名规则</h2>
+        <p>上传的图片文件将使用ISO时间戳命名：YYYY-MM-DDTHH-MM-SS-SSSZ.ext</p>
+        <p>例如：2026-03-30T14-35-22-456Z.jpg</p>
+    </body>
+    </html>
+  `;
+  res.send(apiDocs);
 });
 
 app.post('/upload', upload.single('image'), (req, res) => {
   if (!req.file) {
-    return res.status(400).json({ error: 'No file uploaded' });
+    return res.send(`
+      <!DOCTYPE html>
+      <html lang="zh-CN">
+      <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>上传失败</title>
+          <style>
+              body {
+                  font-family: Arial, sans-serif;
+                  max-width: 600px;
+                  margin: 0 auto;
+                  padding: 50px 20px;
+                  text-align: center;
+              }
+              h1 {
+                  color: #dc3545;
+              }
+              .error-message {
+                  font-size: 18px;
+                  margin: 20px 0;
+              }
+              .back-link {
+                  display: inline-block;
+                  margin-top: 30px;
+                  padding: 10px 20px;
+                  background: #007bff;
+                  color: white;
+                  text-decoration: none;
+                  border-radius: 4px;
+              }
+          </style>
+      </head>
+      <body>
+          <h1>上传失败</h1>
+          <div class="error-message">请选择图片文件</div>
+          <a href="/" class="back-link">返回首页</a>
+      </body>
+      </html>
+    `);
   }
   
-  res.json({
-    message: 'Image uploaded successfully',
-    file: {
-      originalname: req.file.originalname,
-      filename: req.file.filename,
-      size: req.file.size,
-      mimetype: req.file.mimetype
-    }
-  });
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>上传成功</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                max-width: 600px;
+                margin: 0 auto;
+                padding: 50px 20px;
+                text-align: center;
+            }
+            h1 {
+                color: #28a745;
+            }
+            .success-message {
+                font-size: 18px;
+                margin: 20px 0;
+            }
+            .file-info {
+                background: #f8f9fa;
+                padding: 20px;
+                border-radius: 8px;
+                margin: 20px 0;
+                text-align: left;
+            }
+            .file-info p {
+                margin: 5px 0;
+            }
+            .back-link {
+                display: inline-block;
+                margin-top: 30px;
+                padding: 10px 20px;
+                background: #007bff;
+                color: white;
+                text-decoration: none;
+                border-radius: 4px;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>上传成功</h1>
+        <div class="success-message">图片已成功上传！</div>
+        <div class="file-info">
+            <p><strong>文件名：</strong>${req.file.originalname}</p>
+            <p><strong>保存名称：</strong>${req.file.filename}</p>
+            <p><strong>文件大小：</strong>${(req.file.size / 1024).toFixed(2)} KB</p>
+            <p><strong>文件类型：</strong>${req.file.mimetype}</p>
+        </div>
+        <a href="/" class="back-link">返回首页</a>
+    </body>
+    </html>
+  `);
 });
 
 app.get('/images', (req, res) => {
@@ -206,7 +548,7 @@ app.get('/images', (req, res) => {
       
       return {
         filename,
-        originalname: originalname.replace(/-(\\d+)\\./, '.'),
+        originalname: originalname.replace(/-\d+\./, '.'),
         size: stats.size,
         createdAt: stats.birthtime
       };
