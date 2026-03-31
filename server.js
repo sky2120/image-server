@@ -142,13 +142,14 @@ app.get('/', (req, res) => {
         
         <div class="upload-section">
             <h2>上传图片</h2>
-            <form action="/upload" method="post" enctype="multipart/form-data">
+            <form id="upload-form" enctype="multipart/form-data">
                 <div class="form-group">
                     <label for="image">选择图片:</label>
                     <input type="file" id="image" name="image" accept="image/*" required>
                 </div>
                 <button type="submit">上传</button>
             </form>
+            <div id="upload-message" style="margin-top: 15px; padding: 10px; border-radius: 4px; display: none;"></div>
         </div>
         
         <h2>图片库</h2>
@@ -183,7 +184,53 @@ app.get('/', (req, res) => {
                 }
             }
             
-            document.addEventListener('DOMContentLoaded', loadImages);
+            document.addEventListener('DOMContentLoaded', () => {
+                loadImages();
+                
+                const uploadForm = document.getElementById('upload-form');
+                const uploadMessage = document.getElementById('upload-message');
+                
+                uploadForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    
+                    const formData = new FormData(uploadForm);
+                    
+                    try {
+                        uploadMessage.style.display = 'block';
+                        uploadMessage.textContent = '上传中...';
+                        uploadMessage.style.backgroundColor = '#fff3cd';
+                        uploadMessage.style.color = '#856404';
+                        
+                        const response = await fetch('/upload', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (result.success) {
+                            uploadMessage.textContent = '上传成功！';
+                            uploadMessage.style.backgroundColor = '#d4edda';
+                            uploadMessage.style.color = '#155724';
+                            
+                            // 重新加载图片列表
+                            setTimeout(() => {
+                                loadImages();
+                                uploadForm.reset();
+                                uploadMessage.style.display = 'none';
+                            }, 1500);
+                        } else {
+                            uploadMessage.textContent = '上传失败：' + result.error;
+                            uploadMessage.style.backgroundColor = '#f8d7da';
+                            uploadMessage.style.color = '#721c24';
+                        }
+                    } catch (error) {
+                        uploadMessage.textContent = '上传失败：' + error.message;
+                        uploadMessage.style.backgroundColor = '#f8d7da';
+                        uploadMessage.style.color = '#721c24';
+                    }
+                });
+            });
         </script>
     </body>
     </html>
@@ -327,12 +374,25 @@ print(response.text)
             <h4>示例响应（成功）</h4>
             <div class="code-block">
 // 状态码: 200
-上传成功页面，包含文件详细信息
+{
+  "success": true,
+  "message": "图片已成功上传！",
+  "file": {
+    "originalname": "example.jpg",
+    "filename": "2026-03-31T00-15-30-123Z.jpg",
+    "size": 10240,
+    "mimetype": "image/jpeg",
+    "url": "/uploads/2026-03-31T00-15-30-123Z.jpg"
+  }
+}
 </div>
             <h4>示例响应（失败）</h4>
             <div class="code-block">
 // 状态码: 400
-上传失败页面，提示"请选择图片文件"
+{
+  "success": false,
+  "error": "请选择图片文件"
+}
 </div>
         </div>
         
@@ -435,104 +495,23 @@ Cannot GET /uploads/nonexistent.jpg
 
 app.post('/upload', upload.single('image'), (req, res) => {
   if (!req.file) {
-    return res.send(`
-      <!DOCTYPE html>
-      <html lang="zh-CN">
-      <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>上传失败</title>
-          <style>
-              body {
-                  font-family: Arial, sans-serif;
-                  max-width: 600px;
-                  margin: 0 auto;
-                  padding: 50px 20px;
-                  text-align: center;
-              }
-              h1 {
-                  color: #dc3545;
-              }
-              .error-message {
-                  font-size: 18px;
-                  margin: 20px 0;
-              }
-              .back-link {
-                  display: inline-block;
-                  margin-top: 30px;
-                  padding: 10px 20px;
-                  background: #007bff;
-                  color: white;
-                  text-decoration: none;
-                  border-radius: 4px;
-              }
-          </style>
-      </head>
-      <body>
-          <h1>上传失败</h1>
-          <div class="error-message">请选择图片文件</div>
-          <a href="/" class="back-link">返回首页</a>
-      </body>
-      </html>
-    `);
+    return res.status(400).json({
+      success: false,
+      error: '请选择图片文件'
+    });
   }
   
-  res.send(`
-    <!DOCTYPE html>
-    <html lang="zh-CN">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>上传成功</title>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                max-width: 600px;
-                margin: 0 auto;
-                padding: 50px 20px;
-                text-align: center;
-            }
-            h1 {
-                color: #28a745;
-            }
-            .success-message {
-                font-size: 18px;
-                margin: 20px 0;
-            }
-            .file-info {
-                background: #f8f9fa;
-                padding: 20px;
-                border-radius: 8px;
-                margin: 20px 0;
-                text-align: left;
-            }
-            .file-info p {
-                margin: 5px 0;
-            }
-            .back-link {
-                display: inline-block;
-                margin-top: 30px;
-                padding: 10px 20px;
-                background: #007bff;
-                color: white;
-                text-decoration: none;
-                border-radius: 4px;
-            }
-        </style>
-    </head>
-    <body>
-        <h1>上传成功</h1>
-        <div class="success-message">图片已成功上传！</div>
-        <div class="file-info">
-            <p><strong>文件名：</strong>${req.file.originalname}</p>
-            <p><strong>保存名称：</strong>${req.file.filename}</p>
-            <p><strong>文件大小：</strong>${(req.file.size / 1024).toFixed(2)} KB</p>
-            <p><strong>文件类型：</strong>${req.file.mimetype}</p>
-        </div>
-        <a href="/" class="back-link">返回首页</a>
-    </body>
-    </html>
-  `);
+  res.json({
+    success: true,
+    message: '图片已成功上传！',
+    file: {
+      originalname: req.file.originalname,
+      filename: req.file.filename,
+      size: req.file.size,
+      mimetype: req.file.mimetype,
+      url: `/uploads/${req.file.filename}`
+    }
+  });
 });
 
 app.get('/images', (req, res) => {
