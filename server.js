@@ -21,9 +21,19 @@ const storage = multer.diskStorage({
     cb(null, uploadsDir);
   },
   filename: (req, file, cb) => {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const ext = path.extname(file.originalname);
-    cb(null, timestamp + ext);
+    const originalname = file.originalname;
+    const ext = path.extname(originalname);
+    const name = path.basename(originalname, ext);
+    
+    let filename = originalname;
+    let counter = 1;
+    
+    while (fs.existsSync(path.join(uploadsDir, filename))) {
+      filename = `${name}-${counter}${ext}`;
+      counter++;
+    }
+    
+    cb(null, filename);
   }
 });
 
@@ -170,12 +180,13 @@ app.get('/', (req, res) => {
                     }
                     
                     grid.innerHTML = images.map(image => {
+                        const encodedFilename = encodeURIComponent(image.filename);
                         return '<div class="image-card">' +
-                            '<img src="/uploads/' + image.filename + '" alt="' + image.originalname + '">' +
+                            '<img src="/uploads/' + encodedFilename + '" alt="' + image.originalname + '">' +
                             '<div class="image-info">' +
                                 '<p>' + image.originalname + '</p>' +
                                 '<p>' + (image.size / 1024).toFixed(2) + ' KB</p>' +
-                                '<a href="/uploads/' + image.filename + '" download="' + image.originalname + '" class="download-link">下载</a>' +
+                                '<a href="/uploads/' + encodedFilename + '" download="' + image.originalname + '" class="download-link">下载</a>' +
                             '</div>' +
                         '</div>';
                     }).join('');
@@ -379,10 +390,10 @@ print(response.text)
   "message": "图片已成功上传！",
   "file": {
     "originalname": "example.jpg",
-    "filename": "2026-03-31T00-15-30-123Z.jpg",
+    "filename": "example.jpg",
     "size": 10240,
     "mimetype": "image/jpeg",
-    "url": "/uploads/2026-03-31T00-15-30-123Z.jpg"
+    "url": "/uploads/example.jpg"
   }
 }
 </div>
@@ -509,7 +520,7 @@ app.post('/upload', upload.single('image'), (req, res) => {
       filename: req.file.filename,
       size: req.file.size,
       mimetype: req.file.mimetype,
-      url: `/uploads/${req.file.filename}`
+      url: `/uploads/${encodeURIComponent(req.file.filename)}`
     }
   });
 });
@@ -523,11 +534,15 @@ app.get('/images', (req, res) => {
     const images = files.map(filename => {
       const filePath = path.join(uploadsDir, filename);
       const stats = fs.statSync(filePath);
-      const originalname = filename.replace(/^image-\d+-/, '');
+      
+      // 如果文件名包含 -数字. 后缀，移除它
+      const ext = path.extname(filename);
+      const name = path.basename(filename, ext);
+      const originalname = name.replace(/-(\d+)$/, '') + ext;
       
       return {
         filename,
-        originalname: originalname.replace(/-\d+\./, '.'),
+        originalname,
         size: stats.size,
         createdAt: stats.birthtime
       };
